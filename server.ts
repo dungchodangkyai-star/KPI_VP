@@ -10,6 +10,7 @@ import { syncRouter } from "./server/syncRoutes.ts";
 import { onlineRouter } from "./server/onlineRoutes.ts";
 import { databaseRouter } from "./server/databaseRoutes.ts";
 import { runSeeder } from "./server/seeder.ts";
+import { getZaloConfig, saveZaloConfig, sendZaloNotification, formatZaloMessage } from "./server/zaloService.ts";
 
 async function startServer() {
   const app = express();
@@ -324,51 +325,216 @@ async function startServer() {
       const assigner = await db.query.users.findFirst({
         where: (u, { eq, or }) => or(eq(u.id, p.assignerId || 0), eq(u.name, p.assignerName || "Khuất Văn Sơn")),
       });
-      const receiver = await db.query.users.findFirst({
-        where: (u, { eq, or }) => or(eq(u.id, p.receiverId || 0), eq(u.name, p.receiverName || "")),
-      });
 
-      const newAssignment = await db.insert(assignments).values({
-        assignmentId: p.assignmentId || `A8-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        month: p.month || "08-2026",
-        assignerId: assigner ? assigner.id : 1,
-        receiverId: receiver ? receiver.id : 1,
-        taskGroup: p.taskGroup || p.group,
-        taskName: p.taskName || p.task,
-        taskCode: p.taskCode || p.code,
-        baseScore: String(p.baseScore || p.score || "10"),
-        suggestedNature: p.suggestedNature || p.nature || "Trung bình",
-        suggestedCoef: String(p.suggestedCoef || p.coef || "0.8"),
-        expectedConvertedScore: String(p.expectedConvertedScore || "8"),
-        detail: p.detail || "",
-        startDate: p.startDate ? new Date(p.startDate) : new Date(),
-        deadline: p.deadline ? new Date(p.deadline) : new Date(),
-        productRequired: p.productRequired || "",
-        productType: p.productType || "Báo cáo",
-        productQty: parseInt(p.productQty || "1"),
-        unit: p.unit || "Sản phẩm",
-        priority: p.priority || "Bình thường",
-        receiveStatus: "Chờ nhận việc",
-        leaderNote: p.note || p.leaderNote || "",
-      }).returning();
+      // Check if multiple receivers provided
+      const receiversList: Array<{ userId: number; role?: string; coef?: number; note?: string }> = 
+        Array.isArray(p.receivers) && p.receivers.length > 0 
+          ? p.receivers 
+          : [{ userId: p.receiverId || 1, role: 'Chủ trì', coef: p.suggestedCoef ? parseFloat(p.suggestedCoef) : 0.8 }];
 
-      if (receiver) {
+      const createdAssignments = [];
+      const batchGroupId = `BATCH-${Date.now()}`;
+
+      for (const r of receiversList) {
+        const receiver = await db.query.users.findFirst({
+          where: (u, { eq }) => eq(u.id, r.userId),
+        });
+
+        if (!receiver) continue;
+
+        const roleLabel = r.role || 'Chủ trì';
+        const itemCoef = r.coef !== undefined ? String(r.coef) : String(p.suggestedCoef || "0.8");
+        const baseScoreVal = parseFloat(p.baseScore || "10") || 10;
+        const qtyVal = parseInt(p.productQty || "1") || 1;
+        const expectedScore = Math.round(baseScoreVal * parseFloat(itemCoef) * qtyVal * 10) / 10;
+        
+        const combinedLeaderNote = roleLabel === 'Chủ trì'
+          ? (p.leaderNote || p.note || '')
+          : `[Phối hợp thực hiện] ${p.leaderNote || p.note || ''}`.trim();
+
+        const newAssignment = await db.insert(assignments).values({
+          assignmentId: `GV-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
+          month: p.month || "08-2026",
+          assignerId: assigner ? assigner.id : 1,
+          receiverId: receiver.id,
+          taskGroup: p.taskGroup || p.group,
+          taskName: p.taskName || p.task,
+          taskCode: p.taskCode || p.code,
+          baseScore: String(p.baseScore || "10"),
+          suggestedNature: p.suggestedNature || p.nature || "Trung bình",
+          suggestedCoef: itemCoef,
+          expectedConvertedScore: String(expectedScore),
+          detail: p.detail ? `[${roleLabel}] ${p.detail}` : `[${roleLabel}]`,
+          startDate: p.startDate ? new Date(p.startDate) : new Date(),
+          deadline: p.deadline ? new Date(p.deadline) : new Date(),
+          productRequired: p.productRequired || "",
+          productType: p.productType || "Báo cáo",
+          productQty: qtyVal,
+          unit: p.unit || "Sản phẩm",
+          priority: p.priority || "Bình thường",
+          receiveStatus: "Chờ nhận việc",
+          leaderNote: combinedLeaderNote,
+        }).returning();
+
+        // Create notification for receiver
         await db.insert(notifications).values({
           notifyId: `N-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           senderId: assigner ? assigner.id : 1,
           receiverId: receiver.id,
           type: "Giao việc",
-          title: "Bạn có nhiệm vụ mới được Lãnh đạo giao",
-          content: `[${p.taskCode || "NV"}] ${p.taskName || p.task || ""} - Hạn chót: ${p.deadline ? new Date(p.deadline).toLocaleDateString("vi-VN") : "Trong tháng"}`,
+          title: `Lãnh đạo giao việc: [${roleLabel}] ${p.taskName || p.task || ""}`,
+          content: `[${p.taskCode || "NV"}] ${p.taskName || p.task || ""} - Vai trò: ${roleLabel} - Hạn chót: ${p.deadline ? new Date(p.deadline).toLocaleDateString("vi-VN") : "Trong tháng"}`,
           relatedTarget: newAssignment[0].assignmentId,
           status: "Chưa xem",
         }).onConflictDoNothing();
+
+        createdAssignments.push({
+          ...newAssignment[0],
+          receiver: receiver,
+          roleInTask: roleLabel
+        });
       }
 
-      res.json({ success: true, data: newAssignment[0], message: "Đã giao việc thành công!" });
+      res.json({ 
+        success: true, 
+        data: createdAssignments[0] || null, 
+        assignments: createdAssignments,
+        message: `Đã giao việc thành công cho ${createdAssignments.length} nhân sự!` 
+      });
     } catch (error) {
       console.error("Error creating assignment:", error);
       res.status(500).json({ error: String(error) });
+    }
+  });
+
+  // --- Zalo Automation & Configuration Routes ---
+  app.get("/api/zalo/config", (req, res) => {
+    try {
+      const config = getZaloConfig();
+      res.json({ success: true, data: config });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/zalo/config", (req, res) => {
+    try {
+      const saved = saveZaloConfig(req.body);
+      res.json({ success: true, data: saved, message: "Đã lưu cấu hình Zalo thành công!" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/zalo/send", async (req, res) => {
+    try {
+      const { task, receivers, customTemplate } = req.body;
+      const config = getZaloConfig();
+      const templateToUse = customTemplate || config.messageTemplate;
+      const results = [];
+
+      const appUrl = `${req.protocol}://${req.get("host")}`;
+
+      for (const r of (receivers || [])) {
+        const receiver = await db.query.users.findFirst({
+          where: (u, { eq }) => eq(u.id, r.userId || r.id),
+        });
+
+        if (!receiver) continue;
+
+        const cleanPhone = (receiver.phone || receiver.zalo || config.senderPhone || "").replace(/[^0-9]/g, "");
+        const formattedMsg = formatZaloMessage(templateToUse, {
+          receiverName: receiver.name,
+          receiverPosition: receiver.position || "Chuyên viên",
+          role: r.role || "Chủ trì",
+          taskName: task.taskName || task.name || "",
+          taskCode: task.taskCode || task.code || "NV",
+          taskGroup: task.taskGroup || task.group || "KHTC",
+          deadline: task.deadline ? new Date(task.deadline).toLocaleDateString("vi-VN") : "Trong tháng",
+          baseScore: task.baseScore || "10",
+          coef: r.coef || task.suggestedCoef || "0.8",
+          productRequired: task.productRequired || task.productType,
+          productQty: task.productQty || 1,
+          unit: task.unit || "Sản phẩm",
+          priority: task.priority || "Bình thường",
+          leaderNote: task.leaderNote || "",
+          assignerName: config.senderName || "Khuất Văn Sơn",
+          appUrl: `${appUrl}/my-works`
+        });
+
+        const sendResult = await sendZaloNotification({
+          receiverPhone: cleanPhone,
+          receiverName: receiver.name,
+          role: r.role || "Chủ trì",
+          message: formattedMsg,
+          taskData: task,
+          config: config
+        });
+
+        results.push({
+          userId: receiver.id,
+          userName: receiver.name,
+          phone: cleanPhone,
+          role: r.role,
+          message: formattedMsg,
+          ...sendResult
+        });
+      }
+
+      res.json({
+        success: true,
+        sentCount: results.length,
+        method: config.method,
+        results: results,
+        message: `Đã xử lý gửi thông báo Zalo cho ${results.length} nhân sự!`
+      });
+    } catch (error) {
+      console.error("Error dispatching Zalo messages:", error);
+      res.status(500).json({ success: false, error: String(error) });
+    }
+  });
+
+  app.post("/api/zalo/test", async (req, res) => {
+    try {
+      const config = { ...getZaloConfig(), ...req.body };
+      const appUrl = `${req.protocol}://${req.get("host")}`;
+
+      const testMsg = formatZaloMessage(config.messageTemplate, {
+        receiverName: "Nguyễn Văn Thử Nghiệm",
+        receiverPosition: "Chuyên viên KHTC",
+        role: "Chủ trì",
+        taskName: "Nhiệm vụ kiểm tra kết nối Zalo tự động",
+        taskCode: "TEST-01",
+        taskGroup: "Kiểm tra hệ thống",
+        deadline: new Date().toLocaleDateString("vi-VN"),
+        baseScore: "10",
+        coef: "1.0",
+        productRequired: "Báo cáo thử nghiệm",
+        productQty: 1,
+        unit: "Báo cáo",
+        priority: "Khẩn cấp",
+        leaderNote: "Đây là tin nhắn kiểm tra cấu hình tự động hóa Zalo từ hệ thống KPI Văn Phòng.",
+        assignerName: config.senderName || "Khuất Văn Sơn",
+        appUrl: `${appUrl}/my-works`
+      });
+
+      const result = await sendZaloNotification({
+        receiverPhone: config.senderPhone || "0905636344",
+        receiverName: "Lãnh đạo kiểm tra",
+        role: "Chủ trì",
+        message: testMsg,
+        taskData: { taskName: "Nhiệm vụ kiểm tra" },
+        config: config
+      });
+
+      res.json({
+        success: result.success,
+        message: result.message,
+        previewText: testMsg,
+        details: result.details
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: String(error) });
     }
   });
 
