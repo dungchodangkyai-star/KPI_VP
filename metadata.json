@@ -1,0 +1,6 @@
+{
+  "name": "KPI Văn Phòng - KHTC",
+  "description": "Hệ thống quản lý công việc, làm ngoài giờ (OT), duyệt phê duyệt và đánh giá xếp loại KPI Văn Phòng - Kế Hoạch Tài Chính.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
