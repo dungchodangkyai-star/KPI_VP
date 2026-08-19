@@ -6,6 +6,7 @@ import {
   Sparkles, Undo2, Ban
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportStyledExcel } from '../excelUtils';
 import { STANDARD_MONTHS, getActiveLoggedInUser, formatDate, formatMonth } from '../utils';
 
 export default function OtApprove() {
@@ -230,34 +231,49 @@ export default function OtApprove() {
   };
 
   // Export to Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredOvertimes.length === 0) {
       alert("Không có dữ liệu để xuất");
       return;
     }
 
     const exportData = filteredOvertimes.map((o, idx) => ({
-      "STT": idx + 1,
-      "Tháng": o.month,
-      "Ngày làm thêm": o.otDate ? new Date(o.otDate).toLocaleDateString('vi-VN') : '',
-      "Nhân viên": o.user?.name || '',
-      "Khung giờ": `${o.startTime || ''} - ${o.endTime || ''}`,
-      "Giờ đăng ký": o.totalRegHours || '',
-      "Giờ duyệt": approvedHoursMap[o.id] || o.approvedHours || o.totalRegHours || '',
-      "Nội dung công việc": o.content || '',
-      "Lý do làm thêm": o.reason || '',
-      "Dự án": o.project || '',
-      "Kết quả thực tế": o.actualResult || o.expectedResult || '',
-      "Minh chứng": o.evidence || '',
-      "Trạng thái": o.approvalStatus || 'Chờ duyệt',
-      "Ý kiến phê duyệt": o.approverNote || '',
-      "Người duyệt": o.approver?.name || ''
+      stt: idx + 1,
+      month: o.month,
+      otDate: o.otDate ? new Date(o.otDate).toLocaleDateString('vi-VN') : '',
+      userName: o.user?.name || '',
+      timeRange: `${o.startTime || ''} - ${o.endTime || ''}`,
+      totalRegHours: o.totalRegHours ? parseFloat(o.totalRegHours) : '',
+      approvedHours: (approvedHoursMap[o.id] || o.approvedHours || o.totalRegHours) ? parseFloat(approvedHoursMap[o.id] || o.approvedHours || o.totalRegHours) : '',
+      content: o.content || '',
+      reason: o.reason || '',
+      project: o.project || '',
+      actualResult: o.actualResult || o.expectedResult || '',
+      evidence: o.evidence || '',
+      approvalStatus: o.approvalStatus || 'Chờ duyệt',
+      approverNote: o.approverNote || '',
+      approverName: o.approver?.name || ''
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Duyet_Lam_Them");
-    XLSX.writeFile(wb, `Danh_Sach_Duyet_Lam_Them_${selectedMonth}.xlsx`);
+    const columns = [
+      { header: 'STT', key: 'stt', width: 8, align: 'center' as const },
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const },
+      { header: 'Ngày làm thêm', key: 'otDate', width: 14, align: 'center' as const },
+      { header: 'Họ và tên nhân sự', key: 'userName', width: 22, align: 'left' as const },
+      { header: 'Khung giờ', key: 'timeRange', width: 16, align: 'center' as const },
+      { header: 'Giờ đăng ký', key: 'totalRegHours', width: 14, align: 'center' as const, numFmt: '#,##0.0' },
+      { header: 'Giờ duyệt', key: 'approvedHours', width: 14, align: 'center' as const, numFmt: '#,##0.0' },
+      { header: 'Nội dung công việc', key: 'content', width: 34, align: 'left' as const },
+      { header: 'Lý do làm thêm', key: 'reason', width: 28, align: 'left' as const },
+      { header: 'Dự án', key: 'project', width: 24, align: 'left' as const },
+      { header: 'Kết quả thực tế', key: 'actualResult', width: 28, align: 'left' as const },
+      { header: 'Minh chứng', key: 'evidence', width: 28, align: 'left' as const },
+      { header: 'Trạng thái', key: 'approvalStatus', width: 18, align: 'center' as const },
+      { header: 'Ý kiến phê duyệt', key: 'approverNote', width: 28, align: 'left' as const },
+      { header: 'Người duyệt', key: 'approverName', width: 20, align: 'left' as const }
+    ];
+
+    await exportStyledExcel(exportData, columns, `Danh_Sach_Duyet_Lam_Them_${selectedMonth.replace('/', '_')}.xlsx`, 'Duyet_OT');
   };
 
   // Metrics for overview

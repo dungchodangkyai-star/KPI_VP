@@ -5,6 +5,7 @@ import {
   ChevronDown, Layers, ShieldCheck, HelpCircle, Sparkles, Filter, Check, X, ArrowUpDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportStyledExcel } from '../excelUtils';
 import { 
   STANDARD_MONTHS, 
   WORK_NATURE_COEFS, 
@@ -327,36 +328,58 @@ export default function AssignTask() {
   };
 
   // Export Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const dataToExport = filteredAssignments.map((a, idx) => ({
-      "STT": idx + 1,
-      "Mã GV": a.assignmentId,
-      "Tháng": a.month,
-      "Nhân viên nhận": a.receiver?.name || '-',
-      "Chức danh": a.receiver?.position || 'Chuyên viên',
-      "Nhóm công việc": a.taskGroup || '-',
-      "Mã việc": a.taskCode || '-',
-      "Tên nhiệm vụ": a.taskName || '-',
-      "Tính chất": a.suggestedNature || 'Trung bình',
-      "Hệ số": a.suggestedCoef || '0.8',
-      "Điểm chuẩn": a.baseScore || '10',
-      "Điểm QĐ dự kiến": a.expectedConvertedScore || '-',
-      "Sản phẩm yêu cầu": a.productRequired || '-',
-      "Số lượng": a.productQty || 1,
-      "Đơn vị tính": a.unit || 'Sản phẩm',
-      "Mức ưu tiên": a.priority || 'Bình thường',
-      "Ngày giao": formatDate(a.assignDate),
-      "Hạn hoàn thành": formatDate(a.deadline),
-      "Trạng thái tiếp nhận": a.receiveStatus || 'Chờ nhận việc',
-      "Ngày tiếp nhận": formatDate(a.receiveDate),
-      "Ghi chú lãnh đạo": a.leaderNote || '',
-      "Phản hồi nhân viên": a.receiverNote || ''
+      stt: idx + 1,
+      assignmentId: a.assignmentId,
+      month: a.month,
+      receiverName: a.receiver?.name || '-',
+      receiverPosition: a.receiver?.position || 'Chuyên viên',
+      taskGroup: a.taskGroup || '-',
+      taskCode: a.taskCode || '-',
+      taskName: a.taskName || '-',
+      suggestedNature: a.suggestedNature || 'Trung bình',
+      suggestedCoef: a.suggestedCoef || '0.8',
+      baseScore: a.baseScore || '10',
+      expectedConvertedScore: a.expectedConvertedScore || '-',
+      productRequired: a.productRequired || '-',
+      productQty: a.productQty || 1,
+      unit: a.unit || 'Sản phẩm',
+      priority: a.priority || 'Bình thường',
+      assignDate: formatDate(a.assignDate),
+      deadline: formatDate(a.deadline),
+      receiveStatus: a.receiveStatus || 'Chờ nhận việc',
+      receiveDate: formatDate(a.receiveDate),
+      leaderNote: a.leaderNote || '',
+      receiverNote: a.receiverNote || ''
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Danh_sach_giao_viec");
-    XLSX.writeFile(wb, `Danh_sach_giao_viec_${selectedFilterMonth}.xlsx`);
+    const columns = [
+      { header: 'STT', key: 'stt', width: 8, align: 'center' as const },
+      { header: 'Mã giao việc', key: 'assignmentId', width: 16, align: 'center' as const },
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const },
+      { header: 'Nhân viên nhận việc', key: 'receiverName', width: 22, align: 'left' as const },
+      { header: 'Vị trí/Chức danh', key: 'receiverPosition', width: 20, align: 'left' as const },
+      { header: 'Nhóm công việc', key: 'taskGroup', width: 22, align: 'left' as const },
+      { header: 'Mã việc', key: 'taskCode', width: 14, align: 'center' as const },
+      { header: 'Tên nhiệm vụ', key: 'taskName', width: 30, align: 'left' as const },
+      { header: 'Tính chất', key: 'suggestedNature', width: 16, align: 'center' as const },
+      { header: 'Hệ số K', key: 'suggestedCoef', width: 12, align: 'center' as const },
+      { header: 'Điểm chuẩn', key: 'baseScore', width: 14, align: 'center' as const },
+      { header: 'Điểm QĐ dự kiến', key: 'expectedConvertedScore', width: 16, align: 'center' as const },
+      { header: 'Sản phẩm yêu cầu', key: 'productRequired', width: 24, align: 'left' as const },
+      { header: 'Số lượng', key: 'productQty', width: 12, align: 'center' as const },
+      { header: 'Đơn vị tính', key: 'unit', width: 14, align: 'center' as const },
+      { header: 'Mức ưu tiên', key: 'priority', width: 14, align: 'center' as const },
+      { header: 'Ngày giao', key: 'assignDate', width: 14, align: 'center' as const },
+      { header: 'Hạn hoàn thành', key: 'deadline', width: 14, align: 'center' as const },
+      { header: 'Trạng thái tiếp nhận', key: 'receiveStatus', width: 20, align: 'center' as const },
+      { header: 'Ngày tiếp nhận', key: 'receiveDate', width: 14, align: 'center' as const },
+      { header: 'Ghi chú lãnh đạo', key: 'leaderNote', width: 26, align: 'left' as const },
+      { header: 'Phản hồi nhân viên', key: 'receiverNote', width: 26, align: 'left' as const }
+    ];
+
+    await exportStyledExcel(dataToExport, columns, `Danh_Sach_Giao_Viec_${selectedFilterMonth.replace('/', '_')}.xlsx`, 'Giao_Viec');
   };
 
   // Filtered Assignments

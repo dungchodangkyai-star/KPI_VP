@@ -4,6 +4,7 @@ import {
   ArrowLeft, CheckCircle2, AlertCircle, Upload, FileDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { downloadStyledTemplate } from '../excelUtils';
 import { useNavigate } from 'react-router-dom';
 import { STANDARD_MONTHS, getActiveLoggedInUser } from '../utils';
 
@@ -95,20 +96,28 @@ export default function OtRegister() {
     }));
   };
 
-  const handleDownloadTemplate = () => {
-    const data = [{
-      'Tháng': '08-2026',
-      'Người thực hiện (ID)': 1,
-      'Ngày làm thêm': '2026-08-15',
-      'Giờ BĐ': '18:00',
-      'Giờ HT': '21:00',
-      'Nội dung công việc': 'Hoàn thiện báo cáo',
-      'Trạng thái': 'Chờ duyệt'
+  const handleDownloadTemplate = async () => {
+    const templateData = [{
+      month: '08-2026',
+      userId: 1,
+      date: '2026-08-15',
+      startTime: '18:00',
+      endTime: '21:00',
+      content: 'Hoàn thiện hồ sơ thanh quyết toán kế hoạch vốn',
+      status: 'Chờ duyệt'
     }];
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Mau_OT");
-    XLSX.writeFile(wb, "Mau_Nhap_OT.xlsx");
+
+    const columns = [
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const },
+      { header: 'Người thực hiện (ID)', key: 'userId', width: 20, align: 'center' as const },
+      { header: 'Ngày làm thêm (YYYY-MM-DD)', key: 'date', width: 26, align: 'center' as const },
+      { header: 'Giờ BĐ (HH:MM)', key: 'startTime', width: 16, align: 'center' as const },
+      { header: 'Giờ HT (HH:MM)', key: 'endTime', width: 16, align: 'center' as const },
+      { header: 'Nội dung công việc', key: 'content', width: 36, align: 'left' as const },
+      { header: 'Trạng thái', key: 'status', width: 16, align: 'center' as const }
+    ];
+
+    await downloadStyledTemplate(templateData, columns, 'Mau_Nhap_Dang_Ky_Lam_Them.xlsx', 'Mau_OT');
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

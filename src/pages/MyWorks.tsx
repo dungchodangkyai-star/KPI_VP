@@ -8,6 +8,7 @@ import {
   Send, MessageSquare, ArrowRight, UserCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { exportStyledExcel } from '../excelUtils';
 import { 
   STANDARD_MONTHS, 
   WORK_NATURE_COEFS, 
@@ -318,64 +319,80 @@ export default function MyWorks() {
     }
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
+  // Export to Excel
+  const handleExportExcel = async () => {
     if (filteredWorks.length === 0) {
       alert("Không có dữ liệu để xuất!");
       return;
     }
-    const headers = [
-      "STT", "Mã việc", "Tháng", "Nhân viên", "Email", "Vị trí", "Nhóm công việc",
-      "Tên nhiệm vụ", "Nội dung chi tiết", "Ngày bắt đầu", "Giờ BĐ", "Ngày kết thúc",
-      "Giờ KT", "Ngày hoàn thành thực tế", "Số ngày", "Tổng giờ", "Tính chất đề xuất",
-      "Hệ số", "Điểm chuẩn", "Điểm quy đổi", "Trạng thái", "Minh chứng", "Loại sản phẩm",
-      "Số lượng", "Đơn vị tính", "Dự án/Gói thầu", "Đơn vị liên quan", "Lý do chậm",
-      "Miễn phạt", "Lãnh đạo duyệt", "Ghi chú lãnh đạo"
+
+    const dataToExport = filteredWorks.map((w, idx) => ({
+      stt: idx + 1,
+      taskCode: w.taskCode || '',
+      month: w.month || '',
+      userName: w.user?.name || '',
+      position: w.user?.position || '',
+      taskGroup: w.taskGroup || '',
+      taskName: w.taskName || '',
+      detail: w.detail || '',
+      startDate: w.startDate ? formatDate(w.startDate) : '',
+      startTime: w.startTime || '',
+      endDate: w.endDate ? formatDate(w.endDate) : '',
+      endTime: w.endTime || '',
+      actualEndDate: w.actualEndDate ? formatDate(w.actualEndDate) : '',
+      days: w.days || 1,
+      hours: w.hours ? parseFloat(w.hours) : 8,
+      proposedNature: w.proposedNature || '',
+      coef: w.coef ? parseFloat(w.coef) : 0.8,
+      baseScore: w.baseScore ? parseFloat(w.baseScore) : 10,
+      convertedScore: w.convertedScore ? Number(parseFloat(w.convertedScore).toFixed(2)) : 0,
+      status: w.status || '',
+      evidence: w.evidence || '',
+      productType: w.productType || '',
+      productQty: w.productQty || 1,
+      unit: w.unit || '',
+      project: w.project || '',
+      relatedUnit: w.relatedUnit || '',
+      lateReason: w.lateReason || '',
+      penaltyExemption: w.penaltyExemption || 'Không',
+      leaderApproval: w.leaderApproval || 'Chưa duyệt',
+      leaderNote: w.leaderNote || ''
+    }));
+
+    const columns = [
+      { header: 'STT', key: 'stt', width: 8, align: 'center' as const },
+      { header: 'Mã việc', key: 'taskCode', width: 14, align: 'center' as const },
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const },
+      { header: 'Nhân viên', key: 'userName', width: 22, align: 'left' as const },
+      { header: 'Vị trí', key: 'position', width: 18, align: 'left' as const },
+      { header: 'Nhóm công việc', key: 'taskGroup', width: 22, align: 'left' as const },
+      { header: 'Tên nhiệm vụ', key: 'taskName', width: 32, align: 'left' as const },
+      { header: 'Nội dung chi tiết', key: 'detail', width: 34, align: 'left' as const },
+      { header: 'Ngày bắt đầu', key: 'startDate', width: 14, align: 'center' as const },
+      { header: 'Giờ BĐ', key: 'startTime', width: 12, align: 'center' as const },
+      { header: 'Ngày kết thúc', key: 'endDate', width: 14, align: 'center' as const },
+      { header: 'Giờ KT', key: 'endTime', width: 12, align: 'center' as const },
+      { header: 'Ngày HT thực tế', key: 'actualEndDate', width: 16, align: 'center' as const },
+      { header: 'Số ngày', key: 'days', width: 10, align: 'center' as const },
+      { header: 'Tổng giờ', key: 'hours', width: 12, align: 'center' as const, numFmt: '#,##0.0' },
+      { header: 'Tính chất', key: 'proposedNature', width: 16, align: 'center' as const },
+      { header: 'Hệ số K', key: 'coef', width: 12, align: 'center' as const },
+      { header: 'Điểm chuẩn', key: 'baseScore', width: 12, align: 'center' as const },
+      { header: 'Điểm QĐ', key: 'convertedScore', width: 14, align: 'center' as const, numFmt: '#,##0.00' },
+      { header: 'Trạng thái', key: 'status', width: 16, align: 'center' as const },
+      { header: 'Link minh chứng', key: 'evidence', width: 28, align: 'left' as const },
+      { header: 'Loại sản phẩm', key: 'productType', width: 18, align: 'left' as const },
+      { header: 'Số lượng', key: 'productQty', width: 12, align: 'center' as const },
+      { header: 'Đơn vị tính', key: 'unit', width: 14, align: 'center' as const },
+      { header: 'Dự án / Gói thầu', key: 'project', width: 24, align: 'left' as const },
+      { header: 'Đơn vị liên quan', key: 'relatedUnit', width: 22, align: 'left' as const },
+      { header: 'Lý do chậm', key: 'lateReason', width: 26, align: 'left' as const },
+      { header: 'Miễn phạt', key: 'penaltyExemption', width: 12, align: 'center' as const },
+      { header: 'Lãnh đạo duyệt', key: 'leaderApproval', width: 18, align: 'center' as const },
+      { header: 'Ghi chú lãnh đạo', key: 'leaderNote', width: 28, align: 'left' as const }
     ];
 
-    const rows = filteredWorks.map((w, idx) => [
-      idx + 1,
-      `"${w.taskCode || ''}"`,
-      `"${w.month || ''}"`,
-      `"${w.user?.name || ''}"`,
-      `"${w.user?.email || ''}"`,
-      `"${w.user?.position || ''}"`,
-      `"${w.taskGroup || ''}"`,
-      `"${(w.taskName || '').replace(/"/g, '""')}"`,
-      `"${(w.detail || '').replace(/"/g, '""')}"`,
-      `"${w.startDate ? formatDate(w.startDate) : ''}"`,
-      `"${w.startTime || ''}"`,
-      `"${w.endDate ? formatDate(w.endDate) : ''}"`,
-      `"${w.endTime || ''}"`,
-      `"${w.actualEndDate ? formatDate(w.actualEndDate) : ''}"`,
-      w.days || 1,
-      w.hours || 8,
-      `"${w.proposedNature || ''}"`,
-      w.coef || 0.8,
-      w.baseScore || 10,
-      w.convertedScore || 8,
-      `"${w.status || ''}"`,
-      `"${w.evidence || ''}"`,
-      `"${w.productType || ''}"`,
-      w.productQty || 1,
-      `"${w.unit || ''}"`,
-      `"${(w.project || '').replace(/"/g, '""')}"`,
-      `"${(w.relatedUnit || '').replace(/"/g, '""')}"`,
-      `"${(w.lateReason || '').replace(/"/g, '""')}"`,
-      `"${w.penaltyExemption || 'Không'}"`,
-      `"${w.leaderApproval || 'Chưa duyệt'}"`,
-      `"${(w.leaderNote || '').replace(/"/g, '""')}"`
-    ]);
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `KH_Cong_viec_${selectedMonth}_export.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportStyledExcel(dataToExport, columns, `Cong_Viec_Ca_Nhan_${selectedMonth.replace('/', '_')}.xlsx`, 'Cong_Viec');
   };
 
   return (
@@ -405,11 +422,11 @@ export default function MyWorks() {
           </button>
 
           <button
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-black rounded-xl text-xs shadow-2xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Xuất Excel / CSV</span>
+            <span>Xuất Excel</span>
           </button>
 
           <Link

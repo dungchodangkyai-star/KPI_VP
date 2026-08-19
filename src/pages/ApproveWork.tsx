@@ -6,6 +6,7 @@ import {
   Calendar, Timer, ArrowRight, CornerDownRight, CheckCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportStyledExcel } from '../excelUtils';
 import { 
   STANDARD_MONTHS, 
   DEFAULT_TASK_GROUPS, 
@@ -339,38 +340,59 @@ export default function ApproveWork() {
   };
 
   // Export Excel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const dataToExport = filteredWorks.map((w, idx) => {
       const sched = calculateWorkSchedule(w);
       return {
-        "STT": idx + 1,
-        "Tháng": w.month,
-        "Nhân viên": w.user?.name || '-',
-        "Chức danh": cleanPosition(w.user?.position),
-        "Nguồn việc": w.source === 'Giao việc' ? 'Được giao việc' : 'Tự đăng ký',
-        "Mã việc": w.taskCode || '-',
-        "Tên công việc": w.taskName || '-',
-        "Nhóm": w.taskGroup || '-',
-        "Ngày bắt đầu / đăng ký": sched.startDateStr,
-        "Ngày kết thúc / hạn": sched.endDateStr,
-        "Số ngày làm": sched.daysCount,
-        "Đánh giá tiến độ": sched.scheduleText,
-        "Tính chất đã chọn": w.proposedNature || '-',
-        "Hệ số đăng ký": w.coef || '-',
-        "Tính chất duyệt": w.approvedNature || w.proposedNature || '-',
-        "Điểm chuẩn": w.baseScore || '10',
-        "Số lượng SP": w.productQty || 1,
-        "Điểm QĐ": w.convertedScore || '0',
-        "Minh chứng/Link": w.evidence || '-',
-        "Trạng thái duyệt": w.leaderApproval || 'Chưa duyệt',
-        "Ý kiến chỉ đạo của Lãnh đạo": w.leaderNote || ''
+        stt: idx + 1,
+        month: w.month,
+        userName: w.user?.name || '-',
+        position: cleanPosition(w.user?.position),
+        source: w.source === 'Giao việc' ? 'Được giao việc' : 'Tự đăng ký',
+        taskCode: w.taskCode || '-',
+        taskName: w.taskName || '-',
+        taskGroup: w.taskGroup || '-',
+        startDate: sched.startDateStr,
+        endDate: sched.endDateStr,
+        daysCount: sched.daysCount,
+        scheduleText: sched.scheduleText,
+        proposedNature: w.proposedNature || '-',
+        coef: w.coef || '-',
+        approvedNature: w.approvedNature || w.proposedNature || '-',
+        baseScore: w.baseScore || '10',
+        productQty: w.productQty || 1,
+        convertedScore: w.convertedScore ? Number(parseFloat(w.convertedScore).toFixed(2)) : 0,
+        evidence: w.evidence || '-',
+        leaderApproval: w.leaderApproval || 'Chưa duyệt',
+        leaderNote: w.leaderNote || ''
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Danh_sach_duyet_viec");
-    XLSX.writeFile(wb, `Danh_sach_duyet_viec_${selectedMonth}.xlsx`);
+    const columns = [
+      { header: 'STT', key: 'stt', width: 8, align: 'center' as const },
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const },
+      { header: 'Nhân viên thực hiện', key: 'userName', width: 22, align: 'left' as const },
+      { header: 'Vị trí công tác', key: 'position', width: 20, align: 'left' as const },
+      { header: 'Nguồn việc', key: 'source', width: 16, align: 'center' as const },
+      { header: 'Mã việc', key: 'taskCode', width: 14, align: 'center' as const },
+      { header: 'Tên công việc', key: 'taskName', width: 32, align: 'left' as const },
+      { header: 'Nhóm nhiệm vụ', key: 'taskGroup', width: 22, align: 'left' as const },
+      { header: 'Ngày bắt đầu', key: 'startDate', width: 14, align: 'center' as const },
+      { header: 'Ngày kết thúc', key: 'endDate', width: 14, align: 'center' as const },
+      { header: 'Số ngày làm', key: 'daysCount', width: 14, align: 'center' as const },
+      { header: 'Tiến độ', key: 'scheduleText', width: 18, align: 'center' as const },
+      { header: 'Tính chất ĐK', key: 'proposedNature', width: 16, align: 'center' as const },
+      { header: 'Hệ số ĐK', key: 'coef', width: 12, align: 'center' as const },
+      { header: 'Tính chất duyệt', key: 'approvedNature', width: 18, align: 'center' as const },
+      { header: 'Điểm chuẩn', key: 'baseScore', width: 12, align: 'center' as const },
+      { header: 'Số lượng SP', key: 'productQty', width: 12, align: 'center' as const },
+      { header: 'Điểm QĐ', key: 'convertedScore', width: 14, align: 'center' as const, numFmt: '#,##0.00' },
+      { header: 'Link minh chứng', key: 'evidence', width: 30, align: 'left' as const },
+      { header: 'Trạng thái duyệt', key: 'leaderApproval', width: 18, align: 'center' as const },
+      { header: 'Ý kiến chỉ đạo', key: 'leaderNote', width: 28, align: 'left' as const }
+    ];
+
+    await exportStyledExcel(dataToExport, columns, `Danh_Sach_Duyet_Viec_${selectedMonth.replace('/', '_')}.xlsx`, 'Duyet_Viec');
   };
 
   const toggleSelectAll = () => {

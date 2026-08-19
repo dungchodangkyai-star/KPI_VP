@@ -22,6 +22,7 @@ import {
 } from '../utils';
 import { useOrgConfig } from '../contexts/OrgContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { exportDepartmentKpiReportExcel } from '../excelUtils';
 
 export default function DepartmentKpiSummary() {
   const navigate = useNavigate();
@@ -211,32 +212,43 @@ export default function DepartmentKpiSummary() {
   };
 
   // Export Excel function with selected personnel
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!summaryData || !summaryData.users) return;
 
     const allUsers: any[] = summaryData.users || [];
     const targetUsers = allUsers.filter((u: any) => selectedUserIds.includes(u.id));
     const exportList = targetUsers.length > 0 ? targetUsers : allUsers;
 
-    const dataRows = exportList.map((u: any, idx: number) => {
+    const userRows = exportList.map((u: any, idx: number) => {
+      const selfScoreVal = u.scores?.selfKpiTotal !== null && u.scores?.selfKpiTotal !== undefined 
+        ? Number(parseFloat(String(u.scores.selfKpiTotal)).toFixed(2)) 
+        : 0;
+      const approvedScoreVal = u.scores?.approvedKpiTotal !== null && u.scores?.approvedKpiTotal !== undefined 
+        ? Number(parseFloat(String(u.scores.approvedKpiTotal)).toFixed(2)) 
+        : (u.isLeaderOrAbove ? '-' : 'Chờ duyệt');
+
       return {
-        "STT": idx + 1,
-        "Họ và tên": u.name,
-        "Vị trí công tác": cleanPosition(u.position),
-        "Số việc thực hiện": u.taskCounts?.total || 0,
-        "Số việc đã duyệt": u.taskCounts?.approved || 0,
-        "Điểm tự đánh giá": u.scores?.selfKpiTotal !== null && u.scores?.selfKpiTotal !== undefined ? formatScore(u.scores.selfKpiTotal) : '0',
-        "Điểm lãnh đạo duyệt": u.scores?.approvedKpiTotal !== null && u.scores?.approvedKpiTotal !== undefined ? formatScore(u.scores.approvedKpiTotal) : (u.isLeaderOrAbove ? '' : 'Chờ duyệt'),
-        "Tự xếp loại": u.selfRank || 'Hoàn thành tốt nhiệm vụ',
-        // CONSTRAINT: Vị trí từ phó phòng trở lên bỏ trống lãnh đạo xếp
-        "Lãnh đạo xếp": u.isLeaderOrAbove ? '' : (u.leaderRankDisplay || (u.scores?.approvedKpiTotal !== null ? u.approvedRank : 'Chờ duyệt'))
+        stt: idx + 1,
+        name: u.name,
+        position: cleanPosition(u.position),
+        totalTasks: u.taskCounts?.total || 0,
+        approvedTasks: u.taskCounts?.approved || 0,
+        selfScore: selfScoreVal,
+        approvedScore: approvedScoreVal,
+        selfRank: u.selfRank || 'Hoàn thành tốt nhiệm vụ',
+        leaderRank: u.isLeaderOrAbove ? '' : (u.leaderRankDisplay || (u.scores?.approvedKpiTotal !== null ? u.approvedRank : 'Chờ duyệt'))
       };
     });
 
-    const ws = XLSX.utils.json_to_sheet(dataRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `KPI_Phong_${selectedMonth}`);
-    XLSX.writeFile(wb, `Tong_Hop_KPI_Phong_${selectedMonth}.xlsx`);
+    await exportDepartmentKpiReportExcel({
+      month: selectedMonth,
+      orgName: orgConfig.orgName || 'PHÒNG KẾ HOẠCH TÀI CHÍNH',
+      subOrgName: orgConfig.subOrgName || 'ỦY BAN NHÂN DÂN',
+      users: userRows,
+      stats: {
+        totalUsers: userRows.length
+      }
+    });
   };
 
   // Export Word Document with Rock-Solid Tables and Selected Personnel

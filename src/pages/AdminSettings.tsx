@@ -5,6 +5,7 @@ import {
   Layers, CheckCircle2, RefreshCw, FolderTree, Package, Sparkles
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { exportStyledExcel, downloadStyledTemplate } from '../excelUtils';
 import { WORK_NATURE_COEFS } from '../utils';
 import KpiConfigSettings from '../components/KpiConfigSettings';
 import OrgConfigSettings from '../components/OrgConfigSettings';
@@ -59,126 +60,144 @@ export default function AdminSettings() {
   };
 
   // EXPORT EXCEL
-  const handleExport = () => {
+  const handleExport = async () => {
     let filename = `Danh_Muc_${activeTab}.xlsx`;
     let wsData: any[] = [];
+    let columns: any[] = [];
 
     if (activeTab === 'TASK') {
       filename = `Danh_Muc_Nhiem_Vu.xlsx`;
       wsData = tasks.map((c, idx) => ({
-        'Mã': c.code || `NV${String(idx + 1).padStart(2, '0')}`,
-        'Tên nhiệm vụ / Công việc': c.name,
-        'Nhóm việc (Nếu là TASK)': c.properties?.taskGroup || '',
-        'Điểm chuẩn (Nếu là TASK)': c.properties?.score ?? 10,
-        'Tính chất (Nếu là TASK)': c.properties?.nature || 'Trung bình',
-        'Loại SP (Nếu là TASK)': c.properties?.productType || 'Khác',
-        'Đơn vị (Nếu là SP)': c.properties?.unit || 'Sản phẩm',
-        'Trạng thái': c.status || 'Đang dùng',
-        'Thứ tự': c.order || idx + 1
+        code: c.code || `NV${String(idx + 1).padStart(2, '0')}`,
+        name: c.name,
+        taskGroup: c.properties?.taskGroup || '',
+        score: c.properties?.score ?? 10,
+        nature: c.properties?.nature || 'Trung bình',
+        productType: c.properties?.productType || 'Khác',
+        unit: c.properties?.unit || 'Sản phẩm',
+        status: c.status || 'Đang dùng',
+        order: c.order || idx + 1
       }));
+      columns = [
+        { header: 'Mã nhiệm vụ', key: 'code', width: 16, align: 'center' },
+        { header: 'Tên nhiệm vụ / Công việc', key: 'name', width: 34, align: 'left' },
+        { header: 'Nhóm công việc', key: 'taskGroup', width: 22, align: 'left' },
+        { header: 'Điểm chuẩn', key: 'score', width: 14, align: 'center' },
+        { header: 'Tính chất', key: 'nature', width: 16, align: 'center' },
+        { header: 'Loại sản phẩm', key: 'productType', width: 18, align: 'left' },
+        { header: 'Đơn vị tính', key: 'unit', width: 14, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 14, align: 'center' },
+        { header: 'Thứ tự', key: 'order', width: 10, align: 'center' }
+      ];
     } else if (activeTab === 'TASK_GROUP') {
       filename = `Danh_Sach_Nhom_Cong_Viec.xlsx`;
       wsData = taskGroups.map((c, idx) => ({
-        'Mã': c.code || `GRP_${idx + 1}`,
-        'Tên nhóm công việc': c.name,
-        'Thứ tự': c.order || idx + 1,
-        'Trạng thái': c.status || 'Đang dùng'
+        code: c.code || `GRP_${idx + 1}`,
+        name: c.name,
+        order: c.order || idx + 1,
+        status: c.status || 'Đang dùng'
       }));
+      columns = [
+        { header: 'Mã nhóm', key: 'code', width: 16, align: 'center' },
+        { header: 'Tên nhóm công việc', key: 'name', width: 32, align: 'left' },
+        { header: 'Thứ tự', key: 'order', width: 12, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 16, align: 'center' }
+      ];
     } else if (activeTab === 'PRODUCT_TYPE') {
       filename = `Danh_Sach_Loai_San_Pham.xlsx`;
       wsData = productTypes.map((c, idx) => ({
-        'Mã': c.code || `PROD_${idx + 1}`,
-        'Tên loại sản phẩm': c.name,
-        'Đơn vị tính': c.properties?.unit || c.name,
-        'Thứ tự': c.order || idx + 1,
-        'Trạng thái': c.status || 'Đang dùng'
+        code: c.code || `PROD_${idx + 1}`,
+        name: c.name,
+        unit: c.properties?.unit || c.name,
+        order: c.order || idx + 1,
+        status: c.status || 'Đang dùng'
       }));
+      columns = [
+        { header: 'Mã loại', key: 'code', width: 16, align: 'center' },
+        { header: 'Tên loại sản phẩm', key: 'name', width: 30, align: 'left' },
+        { header: 'Đơn vị tính', key: 'unit', width: 16, align: 'center' },
+        { header: 'Thứ tự', key: 'order', width: 12, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 16, align: 'center' }
+      ];
     }
 
-    const ws = XLSX.utils.json_to_sheet(wsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Danh_Muc");
-    XLSX.writeFile(wb, filename);
+    await exportStyledExcel(wsData, columns, filename, 'Danh_Muc');
     showNotice('success', `Đã xuất thành công file ${filename}`);
   };
 
   // DOWNLOAD EXCEL TEMPLATE
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     let filename = `Mau_Danh_Muc_${activeTab}.xlsx`;
     let sampleData: any[] = [];
+    let columns: any[] = [];
 
     if (activeTab === 'TASK') {
       filename = `Mau_Danh_Muc_Nhiem_Vu.xlsx`;
       sampleData = [
         {
-          'Mã': 'KH01',
-          'Tên nhiệm vụ / Công việc': 'Theo dõi kế hoạch vốn theo dự án, nguồn vốn',
-          'Nhóm việc (Nếu là TASK)': 'Kế hoạch vốn',
-          'Điểm chuẩn (Nếu là TASK)': 10,
-          'Tính chất (Nếu là TASK)': 'Trung bình',
-          'Loại SP (Nếu là TASK)': 'Bảng tổng hợp',
-          'Đơn vị (Nếu là SP)': 'Bảng',
-          'Trạng thái': 'Đang dùng',
-          'Thứ tự': 1
+          code: 'KH01',
+          name: 'Theo dõi kế hoạch vốn theo dự án, nguồn vốn',
+          taskGroup: 'Kế hoạch vốn',
+          score: 10,
+          nature: 'Trung bình',
+          productType: 'Bảng tổng hợp',
+          unit: 'Bảng',
+          status: 'Đang dùng',
+          order: 1
         },
         {
-          'Mã': 'B2.1',
-          'Tên nhiệm vụ / Công việc': 'Kiểm tra, rà soát hồ sơ tạm ứng, thanh toán khối lượng hoàn thành',
-          'Nhóm việc (Nếu là TASK)': 'Thanh toán, giải ngân',
-          'Điểm chuẩn (Nếu là TASK)': 12,
-          'Tính chất (Nếu là TASK)': 'Phức tạp',
-          'Loại SP (Nếu là TASK)': 'Hồ sơ thanh toán',
-          'Đơn vị (Nếu là SP)': 'Hồ sơ',
-          'Trạng thái': 'Đang dùng',
-          'Thứ tự': 2
-        },
-        {
-          'Mã': 'QT01',
-          'Tên nhiệm vụ / Công việc': 'Lập hồ sơ quyết toán A-B',
-          'Nhóm việc (Nếu là TASK)': 'Quyết toán',
-          'Điểm chuẩn (Nếu là TASK)': 12,
-          'Tính chất (Nếu là TASK)': 'Rất phức tạp',
-          'Loại SP (Nếu là TASK)': 'Hồ sơ quyết toán',
-          'Đơn vị (Nếu là SP)': 'Hồ sơ',
-          'Trạng thái': 'Đang dùng',
-          'Thứ tự': 3
-        },
-        {
-          'Mã': 'HD01',
-          'Tên nhiệm vụ / Công việc': 'Điều chỉnh thông tin hợp đồng',
-          'Nhóm việc (Nếu là TASK)': 'Quản lý hợp đồng',
-          'Điểm chuẩn (Nếu là TASK)': 1,
-          'Tính chất (Nếu là TASK)': 'Rất đơn giản',
-          'Loại SP (Nếu là TASK)': 'PL hợp đồng',
-          'Đơn vị (Nếu là SP)': 'Bộ',
-          'Trạng thái': 'Đang dùng',
-          'Thứ tự': 4
+          code: 'B2.1',
+          name: 'Kiểm tra, rà soát hồ sơ tạm ứng, thanh toán khối lượng hoàn thành',
+          taskGroup: 'Thanh toán, giải ngân',
+          score: 12,
+          nature: 'Phức tạp',
+          productType: 'Hồ sơ thanh toán',
+          unit: 'Hồ sơ',
+          status: 'Đang dùng',
+          order: 2
         }
+      ];
+      columns = [
+        { header: 'Mã', key: 'code', width: 14, align: 'center' },
+        { header: 'Tên nhiệm vụ / Công việc', key: 'name', width: 34, align: 'left' },
+        { header: 'Nhóm việc (Nếu là TASK)', key: 'taskGroup', width: 22, align: 'left' },
+        { header: 'Điểm chuẩn (Nếu là TASK)', key: 'score', width: 16, align: 'center' },
+        { header: 'Tính chất (Nếu là TASK)', key: 'nature', width: 16, align: 'center' },
+        { header: 'Loại SP (Nếu là TASK)', key: 'productType', width: 18, align: 'left' },
+        { header: 'Đơn vị (Nếu là SP)', key: 'unit', width: 14, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 14, align: 'center' },
+        { header: 'Thứ tự', key: 'order', width: 10, align: 'center' }
       ];
     } else if (activeTab === 'TASK_GROUP') {
       filename = `Mau_Nhom_Cong_Viec.xlsx`;
       sampleData = [
-        { 'Mã': 'GRP_VON', 'Tên nhóm công việc': 'Kế hoạch vốn', 'Thứ tự': 1, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'GRP_THANHTOAN', 'Tên nhóm công việc': 'Thanh toán, giải ngân', 'Thứ tự': 2, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'GRP_QUYETTOAN', 'Tên nhóm công việc': 'Quyết toán', 'Thứ tự': 3, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'GRP_QLHD', 'Tên nhóm công việc': 'Quản lý hợp đồng', 'Thứ tự': 4, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'GRP_KETOAN', 'Tên nhóm công việc': 'Kế toán nội bộ', 'Thứ tự': 5, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'GRP_THUQUY', 'Tên nhóm công việc': 'Thủ quỹ', 'Thứ tự': 6, 'Trạng thái': 'Đang dùng' }
+        { code: 'GRP_VON', name: 'Kế hoạch vốn', order: 1, status: 'Đang dùng' },
+        { code: 'GRP_THANHTOAN', name: 'Thanh toán, giải ngân', order: 2, status: 'Đang dùng' },
+        { code: 'GRP_QUYETTOAN', name: 'Quyết toán', order: 3, status: 'Đang dùng' }
+      ];
+      columns = [
+        { header: 'Mã', key: 'code', width: 16, align: 'center' },
+        { header: 'Tên nhóm công việc', key: 'name', width: 30, align: 'left' },
+        { header: 'Thứ tự', key: 'order', width: 12, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 14, align: 'center' }
       ];
     } else if (activeTab === 'PRODUCT_TYPE') {
       filename = `Mau_Loai_San_Pham.xlsx`;
       sampleData = [
-        { 'Mã': 'PROD_BAOCAO', 'Tên loại sản phẩm': 'Báo cáo', 'Đơn vị tính': 'Báo cáo', 'Thứ tự': 1, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'PROD_TOTRINH', 'Tên loại sản phẩm': 'Tờ trình', 'Đơn vị tính': 'Tờ trình', 'Thứ tự': 2, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'PROD_BANG', 'Tên loại sản phẩm': 'Bảng tổng hợp', 'Đơn vị tính': 'Bảng', 'Thứ tự': 3, 'Trạng thái': 'Đang dùng' },
-        { 'Mã': 'PROD_HSTT', 'Tên loại sản phẩm': 'Hồ sơ thanh toán', 'Đơn vị tính': 'Hồ sơ', 'Thứ tự': 4, 'Trạng thái': 'Đang dùng' }
+        { code: 'PROD_BAOCAO', name: 'Báo cáo', unit: 'Báo cáo', order: 1, status: 'Đang dùng' },
+        { code: 'PROD_TOTRINH', name: 'Tờ trình', unit: 'Tờ trình', order: 2, status: 'Đang dùng' },
+        { code: 'PROD_BANG', name: 'Bảng tổng hợp', unit: 'Bảng', order: 3, status: 'Đang dùng' }
+      ];
+      columns = [
+        { header: 'Mã', key: 'code', width: 16, align: 'center' },
+        { header: 'Tên loại sản phẩm', key: 'name', width: 28, align: 'left' },
+        { header: 'Đơn vị tính', key: 'unit', width: 16, align: 'center' },
+        { header: 'Thứ tự', key: 'order', width: 12, align: 'center' },
+        { header: 'Trạng thái', key: 'status', width: 14, align: 'center' }
       ];
     }
 
-    const ws = XLSX.utils.json_to_sheet(sampleData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Mau_Danh_Muc");
-    XLSX.writeFile(wb, filename);
+    await downloadStyledTemplate(sampleData, columns, filename, 'Mau_Danh_Muc');
   };
 
   // SMART IMPORT EXCEL

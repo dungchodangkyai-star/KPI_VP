@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, Calendar, ArrowLeft, Download, FileText, User, RefreshCw } from 'lucide-react';
+import { Printer, Calendar, ArrowLeft, Download, FileText, User, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { STANDARD_MONTHS, getActiveLoggedInUser, normalizeNFC } from '../utils';
 import { useOrgConfig } from '../contexts/OrgContext';
+import { exportStyledExcel } from '../excelUtils';
 
 export default function OtSummary() {
   const navigate = useNavigate();
@@ -194,6 +195,32 @@ export default function OtSummary() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportExcel = async () => {
+    const dataToExport = summaryData.map((s, idx) => ({
+      stt: idx + 1,
+      name: s.name,
+      position: s.position,
+      count: s.count,
+      days: s.days.size,
+      totalHours: s.totalHours,
+      approvedHours: s.approvedHours,
+      month: selectedMonth
+    }));
+
+    const columns = [
+      { header: 'STT', key: 'stt', width: 8, align: 'center' as const },
+      { header: 'Họ và tên nhân sự', key: 'name', width: 26, align: 'left' as const },
+      { header: 'Vị trí công tác', key: 'position', width: 22, align: 'left' as const },
+      { header: 'Số lượt OT', key: 'count', width: 14, align: 'center' as const },
+      { header: 'Số ngày OT', key: 'days', width: 14, align: 'center' as const },
+      { header: 'Tổng giờ đăng ký', key: 'totalHours', width: 18, align: 'center' as const, numFmt: '#,##0.0' },
+      { header: 'Giờ được duyệt', key: 'approvedHours', width: 18, align: 'center' as const, numFmt: '#,##0.0' },
+      { header: 'Tháng', key: 'month', width: 12, align: 'center' as const }
+    ];
+
+    await exportStyledExcel(dataToExport, columns, `Tong_Hop_Lam_Them_${selectedMonth.replace('/', '_')}.xlsx`, 'Tong_Hop_OT');
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16 font-sans print:max-w-none print:m-0 print:p-0 print:space-y-0 print:pb-0">
       {/* Header & Controls */}
@@ -214,21 +241,29 @@ export default function OtSummary() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            Xuất Excel (.xlsx)
+          </button>
+
           <button
             onClick={handleExportWord}
-            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition cursor-pointer"
+            className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 px-3.5 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
           >
             <Download className="w-4 h-4 text-blue-700" />
-            Tải file Word (.doc)
+            Tải Word (.doc)
           </button>
 
           <button
             onClick={handlePrint}
-            className="bg-[#1F4E78] hover:bg-[#173a5a] text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-md transition cursor-pointer"
+            className="bg-[#1F4E78] hover:bg-[#173a5a] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            In / Lưu PDF
+            In / PDF
           </button>
         </div>
       </div>
